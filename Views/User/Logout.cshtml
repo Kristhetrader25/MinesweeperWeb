@@ -1,0 +1,17 @@
+﻿@{
+    ViewData["Title"] = "Logged Out";
+}
+
+<!--
+    Logout View
+    Purpose:
+    - Confirms the user has been logged out.
+    - After session is cleared, restricted pages should no longer be accessible.
+-->
+<h2>Logged Out</h2>
+
+<p>You have been logged out successfully.</p>
+
+<a asp-controller="User" asp-action="Login">Return to Login</a>
+
+

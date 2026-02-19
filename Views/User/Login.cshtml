@@ -1,0 +1,39 @@
+﻿@model MinesweeperWeb.Models.LoginViewModel
+
+@{
+    ViewData["Title"] = "Login";
+}
+
+<!--
+    Login View
+    Purpose:
+    - Collects username and password from the user.
+    - Submits the form to UserController.Login (POST).
+    - Displays validation errors when ModelState is invalid.
+-->
+<h2>Login</h2>
+
+<form asp-action="Login" asp-controller="User" method="post">
+    @Html.AntiForgeryToken()
+
+    <div>
+        <label asp-for="Username"></label>
+        <input asp-for="Username" />
+        <span asp-validation-for="Username"></span>
+    </div>
+
+    <div>
+        <label asp-for="Password"></label>
+        <input asp-for="Password" type="password" />
+        <span asp-validation-for="Password"></span>
+    </div>
+
+    <button type="submit">Login</button>
+</form>
+
+@section Scripts {
+    <!-- Enables client-side validation messages (server-side validation still runs in controller). -->
+    <partial name="_ValidationScriptsPartial" />
+}
+
+
