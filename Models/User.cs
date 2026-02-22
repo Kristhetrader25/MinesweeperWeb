@@ -14,7 +14,7 @@ namespace MinesweeperWeb.Models
     {
         /// <summary>
         /// Primary key for the Users table.
-        /// EF Core automatically configures this as an identity column.
+        /// Entity Framework Core automatically configures this as an identity column.
         /// </summary>
         public int Id { get; set; }
 
