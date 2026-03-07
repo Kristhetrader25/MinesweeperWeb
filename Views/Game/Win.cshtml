@@ -1,0 +1,14 @@
+﻿@{
+    ViewData["Title"] = "You Win!";
+}
+
+<h2 style="color:green;">You Win! 🎉 </h2>
+
+<p><strong>Final Score:</strong> @ViewBag.FinalScore</p>
+
+<form asp-action="BackToBoard" method="post" style="display:inline-block;">
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-primary">Back to Board</button>
+</form>
+
+<a class="btn btn-secondary" asp-controller="Game" asp-action="StartGame">New Game Settings</a>

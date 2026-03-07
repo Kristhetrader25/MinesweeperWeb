@@ -1,0 +1,102 @@
+﻿@model List<MinesweeperWeb.Models.CellButtonModel>
+
+@{
+    ViewData["Title"] = "MineSweeper Board";
+
+    /*
+        Feature Toggle:
+        - Milestone 2 requires Left-click only.
+    */
+    bool enableRightClickFlagging = false;
+}
+
+<!--
+    MineSweeperBoard View
+    Purpose:
+    - Displays a 2D board using a List model.
+    - Left-click submits to CellClick (reveal).
+    - Right-click (flag/unflag) is disabled for Milestone 2 by default via the toggle above.
+-->
+
+<h2>Minesweeper Board</h2>
+
+<p><strong>Board Size:</strong> @ViewBag.BoardSize x @ViewBag.BoardSize</p>
+<p><strong>Difficulty:</strong> @ViewBag.Difficulty</p>
+
+@if (ViewBag.GameStatus != null)
+{
+    var status = (MinesweeperWeb.Models.Board.GameStatus)ViewBag.GameStatus;
+
+    if (status == MinesweeperWeb.Models.Board.GameStatus.Lost)
+    {
+        <h3 style="color:red;">Game Over — You hit a bomb!</h3>
+    }
+    else if (status == MinesweeperWeb.Models.Board.GameStatus.Won)
+    {
+        <h3 style="color:green;">Congratulations — You won!</h3>
+    }
+}
+
+<link rel="stylesheet" href="~/css/buttons.css" />
+
+<!--
+    Restart button (POST) - creates a new board for the current user
+    while keeping the current session settings (size/difficulty).
+-->
+<form asp-action="Restart" method="post" style="margin-bottom: 15px;">
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-secondary">Restart Game</button>
+</form>
+
+@if (enableRightClickFlagging)
+{
+    <!--
+        Hidden Flag Form (POST)
+        - Used for right-click flagging.
+        - Includes AntiForgeryToken for secure posting.
+        - JavaScript sets the hidden "id" value then submits this form.
+    -->
+    <form id="flagForm" asp-action="ToggleFlag" asp-controller="Game" method="post" style="display:none;">
+        @Html.AntiForgeryToken()
+        <input type="hidden" id="flagId" name="id" value="" />
+    </form>
+}
+
+<!--
+    Main Board Form (POST)
+    - Left-click submits the clicked cell id to CellClick.
+    - Right-click is disabled for Milestone 2 unless enableRightClickFlagging is true.
+-->
+<form asp-action="CellClick" method="post">
+    @Html.AntiForgeryToken()
+
+    <div class="board-container" style="--board-size:@ViewBag.BoardSize;">
+        @for (int i = 0; i < Model.Count; i++)
+        {
+            var cell = Model[i];
+
+            <button class="cell-btn"
+                    type="submit"
+                    name="id"
+                    value="@cell.Id"
+                    oncontextmenu="@(enableRightClickFlagging ? $"event.preventDefault(); flagCell({cell.Id});" : "return false;")">
+                <img src="~/img/@cell.ImageName" alt="@cell.AltText" />
+            </button>
+        }
+    </div>
+</form>
+
+@if (enableRightClickFlagging)
+{
+    <script>
+        /*
+            Right-click helper:
+            Submits the hidden "ToggleFlag" form with the clicked cell id.
+            Uses a hidden form so ASP.NET anti-forgery token is included.
+        */
+        function flagCell(id) {
+            document.getElementById('flagId').value = id;
+            document.getElementById('flagForm').submit();
+        }
+    </script>
+}

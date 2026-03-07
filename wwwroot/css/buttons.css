@@ -1,0 +1,25 @@
+﻿/* Basic grid styling. */
+
+/* Board container becomes a real grid */
+.board-container {
+    display: grid;
+    grid-template-columns: repeat(var(--board-size), 48px);
+    gap: 2px;
+}
+
+/* Each cell button is a fixed square */
+.cell-btn {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+    /* Image fits inside the button */
+    .cell-btn img {
+        width: 48px;
+        height: 48px;
+        display: block;
+    }
