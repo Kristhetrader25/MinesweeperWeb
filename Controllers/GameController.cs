@@ -51,7 +51,7 @@ namespace MinesweeperWeb.Controllers
         /// Feature toggle:
         /// Enable or disable right click.
         /// </summary>
-        private const bool EnableRightClickFlagging = false;
+        private const bool EnableRightClickFlagging = true;
 
         /// <summary>
         /// Converts the difficulty string stored in session into a bomb probability (0.0–0.25).
@@ -587,6 +587,101 @@ namespace MinesweeperWeb.Controllers
 
             ViewBag.FinalScore = GetFinalScoreFromSession();
             return View();
+        }
+
+        /// <summary>
+        /// Handles an AJAX left-click for a single cell.
+        /// Updates the board state and returns either:
+        /// 1) The updated _Cell partial view if the game is still in progress, or
+        /// 2) A JSON response instructing the client to redirect to Win or Loss.
+        /// </summary>
+        /// <param name="id">Flattened cell id (0..Size*Size-1).</param>
+        /// <returns>A partial view for a single updated cell, or JSON redirect info if the game ends.</returns>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult RevealCellAjax(int id)
+        {
+            // Restrict access: user must be logged in.
+            int? userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+
+            int userKey = userId.Value;
+
+            // If the user does not have a board initialized yet, stop the request.
+            if (!_boards.ContainsKey(userKey))
+            {
+                return BadRequest();
+            }
+
+            Board board = _boards[userKey];
+
+            // Do not allow more clicks after game is finished.
+            if (board.DetermineGameState() != Board.GameStatus.InProgress)
+            {
+                return BadRequest();
+            }
+
+            // Convert flattened id to row/column.
+            int row = id / board.Size;
+            int col = id % board.Size;
+
+            // Validate bounds.
+            if (row < 0 || row >= board.Size || col < 0 || col >= board.Size)
+            {
+                return BadRequest();
+            }
+
+            Cell cell = board.Cells[row, col];
+
+            // Reveal logic for left-click.
+            if (!cell.IsFlagged && !cell.IsRevealed)
+            {
+                bool safe = cell.Reveal();
+
+                if (safe && cell.LiveNeighbors == 0)
+                {
+                    board.FloodFill(row, col);
+                }
+
+                if (cell.CollectReward())
+                {
+                    board.RewardsRemaining++;
+                }
+            }
+
+            // Save updated board state.
+            _boards[userKey] = board;
+
+            // Check whether the move ended the game.
+            Board.GameStatus status = board.DetermineGameState();
+
+            if (status != Board.GameStatus.InProgress)
+            {
+                // Record end time for scoring.
+                board.EndTime = DateTime.Now;
+
+                // Calculate and store final score.
+                int score = CalculateScore(board);
+                SaveFinalScoreToSession(score);
+
+                // Persist finished board state.
+                _boards[userKey] = board;
+
+                // Return JSON telling JavaScript where to redirect.
+                if (status == Board.GameStatus.Won)
+                {
+                    return Json(new { redirectUrl = Url.Action("Win", "Game") });
+                }
+
+                return Json(new { redirectUrl = Url.Action("Loss", "Game") });
+            }
+
+            // Build and return only the updated cell partial.
+            CellButtonModel updatedCell = BuildButtonsFromBoard(board)[id];
+            return PartialView("_Cell", updatedCell);
         }
     }
 }

@@ -1,0 +1,17 @@
+﻿@model MinesweeperWeb.Models.CellButtonModel
+
+<!--
+    Partial View: _Cell
+    Purpose:
+    - Renders a single Minesweeper cell.
+    - This partial will later be returned by AJAX so only one cell updates
+      instead of reloading the entire board page.
+-->
+
+<div class="cell-wrapper" id="cell-@Model.Id">
+    <button class="cell-btn"
+            type="button"
+            data-cell-id="@Model.Id">
+        <img src="~/img/@Model.ImageName" alt="@Model.AltText" />
+    </button>
+</div>

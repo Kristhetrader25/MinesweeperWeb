@@ -5,9 +5,9 @@
 
     /*
         Feature Toggle:
-        - Milestone 2 requires Left-click only.
+        - Milestone # requires Right-click enabled.
     */
-    bool enableRightClickFlagging = false;
+    bool enableRightClickFlagging = true;
 }
 
 <!--
@@ -22,6 +22,8 @@
 
 <p><strong>Board Size:</strong> @ViewBag.BoardSize x @ViewBag.BoardSize</p>
 <p><strong>Difficulty:</strong> @ViewBag.Difficulty</p>
+
+<p><strong>Last AJAX Update:</strong> <span id="ajax-timestamp">@DateTime.Now.ToLongTimeString()</span></p>
 
 @if (ViewBag.GameStatus != null)
 {
@@ -65,7 +67,7 @@
 <!--
     Main Board Form (POST)
     - Left-click submits the clicked cell id to CellClick.
-    - Right-click is disabled for Milestone 2 unless enableRightClickFlagging is true.
+    - Right-click is enabled for Milestone 3.
 -->
 <form asp-action="CellClick" method="post">
     @Html.AntiForgeryToken()
@@ -75,13 +77,9 @@
         {
             var cell = Model[i];
 
-            <button class="cell-btn"
-                    type="submit"
-                    name="id"
-                    value="@cell.Id"
-                    oncontextmenu="@(enableRightClickFlagging ? $"event.preventDefault(); flagCell({cell.Id});" : "return false;")">
-                <img src="~/img/@cell.ImageName" alt="@cell.AltText" />
-            </button>
+            <div oncontextmenu="@(enableRightClickFlagging ? $"event.preventDefault(); flagCell({cell.Id});" : "return false;")">
+                <partial name="_Cell" model="cell" />
+            </div>
         }
     </div>
 </form>
@@ -100,3 +98,61 @@
         }
     </script>
 }
+
+<script>
+    /*
+        AJAX left-click handler:
+        - Sends the clicked cell id to RevealCellAjax
+        - If the game is still in progress, replaces only that one cell
+        - If the game ends, redirects to Win or Loss
+        - Updates the timestamp to prove the page did not fully reload
+    */
+    document.addEventListener("DOMContentLoaded", function () {
+        const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+
+        document.querySelectorAll(".cell-btn").forEach(button => {
+            button.addEventListener("click", function () {
+                const cellId = this.getAttribute("data-cell-id");
+                const token = tokenInput ? tokenInput.value : "";
+
+                fetch('@Url.Action("RevealCellAjax", "Game")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                    },
+                    body: `__RequestVerificationToken=${encodeURIComponent(token)}&id=${encodeURIComponent(cellId)}`
+                })
+                .then(async response => {
+                    const contentType = response.headers.get("content-type") || "";
+
+                    // If controller returned JSON, the game ended and we should redirect.
+                    if (contentType.includes("application/json")) {
+                        const data = await response.json();
+                        if (data.redirectUrl) {
+                            window.location.href = data.redirectUrl;
+                            return null;
+                        }
+                    }
+
+                    // Otherwise controller returned the updated cell partial HTML.
+                    return response.text();
+                })
+                .then(html => {
+                    if (!html) return;
+
+                    const target = document.getElementById(`cell-${cellId}`);
+                    if (target) {
+                        target.outerHTML = html;
+                    }
+
+                    // Update timestamp to demonstrate AJAX partial update.
+                    const timestamp = document.getElementById("ajax-timestamp");
+                    if (timestamp) {
+                        timestamp.textContent = new Date().toLocaleTimeString();
+                    }
+                })
+                .catch(error => console.error("AJAX cell update failed:", error));
+            });
+        });
+    });
+</script>

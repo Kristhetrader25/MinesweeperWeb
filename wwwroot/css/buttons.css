@@ -18,8 +18,13 @@
 }
 
     /* Image fits inside the button */
-    .cell-btn img {
-        width: 48px;
-        height: 48px;
-        display: block;
-    }
+.cell-btn img {
+     width: 48px;
+     height: 48px;
+     display: block;
+}
+
+.cell-wrapper {
+    width: 48px;
+    height: 48px;
+}
