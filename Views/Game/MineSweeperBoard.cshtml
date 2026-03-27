@@ -50,6 +50,16 @@
     <button type="submit" class="btn btn-secondary">Restart Game</button>
 </form>
 
+<!--
+    Save Game button (POST)
+    - Saves the current board state for the logged-in user into the Games table.
+-->
+<form asp-action="SaveGame" method="post" style="margin-bottom: 15px;">
+    @Html.AntiForgeryToken()
+    <button type="submit" class="btn btn-primary">Save Game</button>
+</form>
+
+
 @if (enableRightClickFlagging)
 {
     <!--

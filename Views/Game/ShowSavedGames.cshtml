@@ -1,0 +1,43 @@
+﻿@model List<MinesweeperWeb.Models.Game>
+
+@{
+    ViewData["Title"] = "Saved Games";
+}
+
+<h2>Saved Games</h2>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Game ID</th>
+            <th>Date Saved</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var game in Model)
+        {
+            <tr>
+                <td>@game.Id</td>
+                <td>@game.DateSaved</td>
+                <td>
+                    <!-- Load button (we will implement next) -->
+                    <form asp-action="LoadGame" method="post" style="display:inline;">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@game.Id" />
+                        <button type="submit" class="btn btn-success">Load</button>
+                    </form>
+
+                    <!-- Delete button (we will implement next) -->
+                    <form asp-action="DeleteGame" method="post" style="display:inline;">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@game.Id" />
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<a class="btn btn-secondary" asp-action="MineSweeperBoard">Back to Game</a>

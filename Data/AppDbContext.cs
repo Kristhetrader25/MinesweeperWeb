@@ -23,6 +23,11 @@ namespace MinesweeperWeb.Data
         /// Represents the Users table in the database.
         /// </summary>
         public DbSet<User> Users { get; set; }
+
+        /// <summary>
+        /// Table of saved Minesweeper games.
+        /// </summary>
+        public DbSet<Game> Games { get; set; }
     }
 }
 

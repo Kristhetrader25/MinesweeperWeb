@@ -3,6 +3,8 @@ using MinesweeperWeb.Models;
 using System;
 using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
+using System.Text.Json;
+using MinesweeperWeb.Data;
 
 namespace MinesweeperWeb.Controllers
 {
@@ -30,6 +32,22 @@ namespace MinesweeperWeb.Controllers
         /// when the user clicks "Back to Board" from Win/Loss.
         /// </summary>
         private const string AllowFinishedBoardSessionKey = "AllowFinishedBoard";
+
+        /// <summary>
+        /// Database context used for saving and loading game records.
+        /// </summary>
+        private readonly AppDbContext _context;
+
+
+        /// <summary>
+        /// Creates a new instance of the GameController with database access.
+        /// </summary>
+        /// <param name="context">Application database context.</param>
+        public GameController(AppDbContext context)
+        {
+            _context = context;
+        }
+
 
         /// <summary>
         /// Stores the final score in session so it is available across redirects/pages.
@@ -682,6 +700,221 @@ namespace MinesweeperWeb.Controllers
             // Build and return only the updated cell partial.
             CellButtonModel updatedCell = BuildButtonsFromBoard(board)[id];
             return PartialView("_Cell", updatedCell);
+        }
+
+
+        /// <summary>
+        /// Saves the current user's game to the database by serializing
+        /// the board state into JSON.
+        /// </summary>
+        /// <returns>Redirects back to the MineSweeperBoard page after saving.</returns>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult SaveGame()
+        {
+            // Restrict access: user must be logged in.
+            int? userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+            {
+                return RedirectToAction("Login", "User");
+            }
+
+            int userKey = userId.Value;
+
+            // Ensure the current user actually has an active board.
+            if (!_boards.ContainsKey(userKey))
+            {
+                return RedirectToAction(nameof(StartGame));
+            }
+
+            Board board = _boards[userKey];
+
+            // Convert the in-memory Board into a serializable save model.
+            SavedGameData savedGameData = new SavedGameData
+            {
+                Size = board.Size,
+                Difficulty = board.Difficulty,
+                RewardsRemaining = board.RewardsRemaining,
+                StartTime = board.StartTime,
+                EndTime = board.EndTime
+            };
+
+            // Flatten the 2D board cells into a serializable list.
+            for (int r = 0; r < board.Size; r++)
+            {
+                for (int c = 0; c < board.Size; c++)
+                {
+                    Cell cell = board.Cells[r, c];
+
+                    savedGameData.Cells.Add(new SavedCellData
+                    {
+                        Live = cell.Live,
+                        LiveNeighbors = cell.LiveNeighbors,
+                        HasReward = cell.HasReward,
+                        IsRevealed = cell.IsRevealed,
+                        IsFlagged = cell.IsFlagged
+                    });
+                }
+            }
+
+            // Serialize the save object into JSON.
+            string jsonGameData = JsonSerializer.Serialize(savedGameData);
+
+            // Create the database record.
+            Game savedGame = new Game
+            {
+                UserId = userKey,
+                DateSaved = DateTime.Now,
+                GameData = jsonGameData
+            };
+
+            // Save to database.
+            _context.Games.Add(savedGame);
+            _context.SaveChanges();
+
+            return RedirectToAction(nameof(MineSweeperBoard));
+        }
+
+
+        /// <summary>
+        /// Displays a list of saved games for the current user.
+        /// </summary>
+        /// <returns>A view containing all saved games for the logged-in user.</returns>
+        [HttpGet]
+        public IActionResult ShowSavedGames()
+        {
+            int? userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+            {
+                return RedirectToAction("Login", "User");
+            }
+
+            int userKey = userId.Value;
+
+            // Get only games that belong to this user
+            List<Game> games = _context.Games
+                .Where(g => g.UserId == userKey)
+                .OrderByDescending(g => g.DateSaved)
+                .ToList();
+
+            return View(games);
+        }
+
+
+        /// <summary>
+        /// Rebuilds a Board object from previously saved JSON game data.
+        /// </summary>
+        /// <param name="savedGameData">Deserialized saved game data.</param>
+        /// <returns>A restored Board instance.</returns>
+        private static Board RestoreBoardFromSavedData(SavedGameData savedGameData)
+        {
+            // Create a board shell using saved size and difficulty.
+            Board board = new Board(savedGameData.Size, savedGameData.Difficulty);
+
+            // Restore board-level properties.
+            board.RewardsRemaining = savedGameData.RewardsRemaining;
+            board.StartTime = savedGameData.StartTime;
+            board.EndTime = savedGameData.EndTime;
+
+            // Restore each cell from the flattened saved list.
+            int index = 0;
+            for (int r = 0; r < board.Size; r++)
+            {
+                for (int c = 0; c < board.Size; c++)
+                {
+                    SavedCellData savedCell = savedGameData.Cells[index];
+
+                    board.Cells[r, c].SetState(
+                        savedCell.Live,
+                        savedCell.LiveNeighbors,
+                        savedCell.HasReward,
+                        savedCell.IsRevealed,
+                        savedCell.IsFlagged);
+
+                    index++;
+                }
+            }
+
+            return board;
+        }
+
+
+        /// <summary>
+        /// Loads a saved game for the current user from the database,
+        /// restores the board state, and returns the user to the game board.
+        /// </summary>
+        /// <param name="id">The id of the saved game record to load.</param>
+        /// <returns>Redirects to the MineSweeperBoard page after loading.</returns>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult LoadGame(int id)
+        {
+            // Restrict access: user must be logged in.
+            int? userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+            {
+                return RedirectToAction("Login", "User");
+            }
+
+            int userKey = userId.Value;
+
+            // Find the saved game and ensure it belongs to the current user.
+            Game? savedGame = _context.Games.FirstOrDefault(g => g.Id == id && g.UserId == userKey);
+            if (savedGame == null)
+            {
+                return RedirectToAction(nameof(ShowSavedGames));
+            }
+
+            // Deserialize the JSON back into a save-state object.
+            SavedGameData? savedGameData = JsonSerializer.Deserialize<SavedGameData>(savedGame.GameData);
+            if (savedGameData == null)
+            {
+                return RedirectToAction(nameof(ShowSavedGames));
+            }
+
+            // Restore the board and place it back into the in-memory board dictionary.
+            Board restoredBoard = RestoreBoardFromSavedData(savedGameData);
+            _boards[userKey] = restoredBoard;
+
+            // Restore the matching session values so the rest of the app stays in sync.
+            HttpContext.Session.SetInt32("BoardSize", restoredBoard.Size);
+            HttpContext.Session.SetString("Difficulty", restoredBoard.Difficulty.ToString());
+
+            // Clear outcome-related session state so loading behaves like an active game.
+            HttpContext.Session.Remove("FinalScore");
+            HttpContext.Session.Remove(AllowFinishedBoardSessionKey);
+
+            return RedirectToAction(nameof(MineSweeperBoard));
+        }
+
+
+        /// <summary>
+        /// Deletes a saved game record for the current user.
+        /// </summary>
+        /// <param name="id">The id of the saved game to delete.</param>
+        /// <returns>Redirects back to the saved games list.</returns>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult DeleteGame(int id)
+        {
+            // Restrict access: user must be logged in.
+            int? userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+            {
+                return RedirectToAction("Login", "User");
+            }
+
+            int userKey = userId.Value;
+
+            // Find the saved game and ensure it belongs to the current user.
+            Game? savedGame = _context.Games.FirstOrDefault(g => g.Id == id && g.UserId == userKey);
+            if (savedGame != null)
+            {
+                _context.Games.Remove(savedGame);
+                _context.SaveChanges();
+            }
+
+            return RedirectToAction(nameof(ShowSavedGames));
         }
     }
 }
